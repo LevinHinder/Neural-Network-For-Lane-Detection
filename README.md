@@ -1,4 +1,4 @@
-# Neural-Network-for-lane-detection
+# Neural-Network-For-Lane-Detection
 
 Code and Dataset will be uploaded soon
 
