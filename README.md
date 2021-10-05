@@ -19,7 +19,7 @@
   <li>RAM: >5GB</li>
 </ul>
 
-The program is heavily RAM dependent and will automaticly adapt to the amount of RAM availiable. Therefore more than 8 GB of RAM is preverred.
+The program is heavily RAM dependent and will automaticly adapt to the amount of RAM availiable. Therefore more than 8 GB of RAM is desirable.
 
 
 ### Software Specefications
