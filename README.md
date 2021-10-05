@@ -18,7 +18,6 @@
   <li>Memory: >5GB</li>
   <li>RAM: >5GB</li>
 </ul>
-
 The program is heavily RAM dependent and will automaticly adapt to the amount of RAM availiable. Therefore more than 8 GB of RAM is desirable.
 
 
@@ -26,13 +25,12 @@ The program is heavily RAM dependent and will automaticly adapt to the amount of
 <ul>
   <li>Python 3.8 or higher should work.</li>
 </ul>
-
 There should be no dependencies with regard to the operating system.
 
 
+### Dataset
+For this project I used the <a href="https://github.com/SoulmateB/CurveLanes">CurveLanes Dataset</a>. With the program <i>data preparation.py</i> I wrote a little scipt to convert the datapoints into a more uniform way. To do so, I converted all the information from the .JSON files into pictures with binary segmentation.
 
-
-For this project I used the <a href="https://github.com/SoulmateB/CurveLanes">CurveLanes Dataset</a>.
 
 ### License
 <span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/InteractiveResource" property="dct:title" rel="dct:type">Neural Network For Lane Detection</span> by <span xmlns:cc="http://creativecommons.org/ns#" property="cc:attributionName">Levin Hinder</span> is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.
