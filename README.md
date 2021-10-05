@@ -24,7 +24,7 @@ The program is heavily RAM dependent and will automaticly adapt to the amount of
 
 ### Software Specefications
 <ul>
-  <li>Python >3.8 should work.</li>
+  <li>Python 3.8 or higher should work.</li>
 </ul>
 
 There should be no dependencies with regard to the operating system.
