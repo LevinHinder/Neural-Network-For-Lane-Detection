@@ -1,13 +1,33 @@
 # Neural-Network-For-Lane-Detection
 
 ### Manual
-Download the newest <a href="https://github.com/LevinHinder/Neural-Network-For-Lane-Detection/releases">release</a>.<br>
-Donwload the newest <a href="https://drive.google.com/drive/u/2/folders/16IIDijFDWoHC26rXpmCCL62cztuIQiXO">model</a>.<br>
-Download the newest <a href="https://www.python.org/downloads/">Python Interpreter</a>. Make sure you can pip install.
+<ol>
+  <li>Download the newest <a href="https://github.com/LevinHinder/Neural-Network-For-Lane-Detection/releases">release</a>.</li>
+  <li>Donwload the newest <a href="https://drive.google.com/drive/u/2/folders/16IIDijFDWoHC26rXpmCCL62cztuIQiXO">model</a>.</li>
+  <li>Download the newest <a href="https://www.python.org/downloads/">Python Interpreter</a>. Make sure you can pip install.</li>
+  <li>Unzip both the model and the program and merge them into the same folder.</li>
+  <li>Run <i>program.py</i> in the Python console. The program will automaticly install all necessary libraries by itself or, if needed, update them. The startup process can take a view minutes and will only work if both <i>program.py</i> and <i>lane_detection.model</i> are in the same folder.</li>
+  <li>Once the program has loaded it will show you <code>path:</code>. Write there the full path to your video file you want to process.<br>E.g. <code>path: C:\Users\Levin\Downloads\test.mp4</code></li>
+  <li>Wait until the program has finished. As soon as it's done, it will save the new video file in the directory where <i>program.py</i> is saved. It is named <i>original_file_name</i>_output.mp4</li>
+  <li>To exit the program write <code>exit</code> as path.</li>
+</ol>
 
-Unzip both the model and the program and merge them into the same folder.
-Run the program.py
 
+### Hardware Specefications
+<ul>
+  <li>Memory: >5GB</li>
+  <li>RAM: >5GB</li>
+</ul>
+
+The program is heavily RAM dependent and will automaticly adapt to the amount of RAM availiable. Therefore more than 8 GB of RAM is preverred.
+
+
+### Software Specefications
+<ul>
+  <li>Python >3.8 should work.</li>
+</ul>
+
+There should be no dependencies with regard to the operating system.
 
 
 
