@@ -2,7 +2,7 @@
 
 ### Manual
 <ol>
-  <li>Download the newest <a href="https://github.com/LevinHinder/Neural-Network-For-Lane-Detection/releases">release</a>.</li>
+  <li>Download the newest <i>program.py</i> file from the <a href="https://github.com/LevinHinder/Neural-Network-For-Lane-Detection/releases">release</a>.</li>
   <li>Donwload the newest <a href="https://drive.google.com/file/d/1WrDlZdjC6sFBnJ5mOpW7xdxqZTTB-qny/view?usp=sharing">model</a>.</li>
   <li>Download the newest <a href="https://www.python.org/downloads/">Python Interpreter</a>. Make sure you can pip install.</li>
   <li>Merge both <i>lane_detection.model</i> and <i>program.py</i> into the same folder.</li>
