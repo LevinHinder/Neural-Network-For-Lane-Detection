@@ -45,13 +45,14 @@ def animate(i):
         # Update the graphs
         plt.cla()
         # Plot all the training data
-        plt.plot(train_index, learning_rate, label="learning rate")
         plt.plot(train_index, train_accuracy, label="training accuracy")
-        plt.plot(train_index, np.array(train_data_loss) + np.array(train_reg_loss), label="training loss")
+        plt.plot(train_index, np.array(train_data_loss), label="training loss")
 
         # Plot all the validation data
         plt.plot(valid_index, valid_accuracy, label="validation accuracy")
         plt.plot(valid_index, valid_data_loss, label="validation loss")
+
+        plt.ylim(0, 1)
 
         # Add legend to graph
         plt.legend(loc="upper left")

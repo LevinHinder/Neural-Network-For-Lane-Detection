@@ -8,22 +8,11 @@ import dill
 import psutil
 
 
-# Print iterations progress
-def printProgressBar(iteration, total, prefix="", suffix="", length=100, fill="█", printEnd="\r"):
-    percent = ("{0:.1f}").format(100 * (iteration / float(total)))
-    filledLength = int(length * iteration // total)
-    bar = fill * filledLength + "-" * (length - filledLength)
-    print(f"\r{prefix} |{bar}| {percent}% {suffix}", end=printEnd)
-    # Print New Line on Complete
-    if iteration == total:
-        print()
-
-
 class Layer_Dense:
 
     def __init__(self, n_inputs, n_neurons, weight_regulator=0., bias_regulator=0.):
         # Initialise weights and biases
-        self.weights = 0.001 * np.random.randn(n_inputs, n_neurons)
+        self.weights = 0.0001 * np.random.randn(n_inputs, n_neurons)
         self.biases = np.zeros((1, n_neurons))
         # Set regularisation strength
         self.weight_regulator = weight_regulator
@@ -58,7 +47,7 @@ class Layer_Dropout:
         # Save input values
         self.inputs = inputs
 
-        # If not in the training mode deactivate dropout
+        # If not in training mode deactivate dropout
         if not training:
             self.output = inputs.copy()
             return
@@ -150,10 +139,8 @@ class Optimizer_Adam:
         bias_cache_corrected = layer.bias_cache / (1 - self.beta_2 ** (self.iterations + 1))
 
         # Update parameters
-        layer.weights -= self.current_learning_rate * weight_momentum_corrected / (
-                    np.sqrt(weight_cache_corrected) + self.epsilon)
-        layer.biases -= self.current_learning_rate * bias_momentum_corrected / (
-                    np.sqrt(bias_cache_corrected) + self.epsilon)
+        layer.weights -= self.current_learning_rate * weight_momentum_corrected / (np.sqrt(weight_cache_corrected) + self.epsilon)
+        layer.biases -= self.current_learning_rate * bias_momentum_corrected / (np.sqrt(bias_cache_corrected) + self.epsilon)
 
     def post_update_params(self):
         # Update iterations after any parameter updates
@@ -221,6 +208,22 @@ class Loss_BinaryCrossentropy(Loss):
 
         # Calculate gradient
         self.dinputs = -(y_true / clipped_dvalues - (1 - y_true) / (1 - clipped_dvalues)) / len(dvalues[0])
+        # Normalize gradient
+        self.dinputs = self.dinputs / len(dvalues)
+
+
+class Loss_MeanSquaredError(Loss):
+
+    def forward(self, y_pred, y_true):
+        # Calculate loss
+        sample_losses = np.mean((y_true - y_pred) ** 2, axis=-1)
+
+        # Return losses
+        return sample_losses
+
+    def backward(self, dvalues, y_true):
+        # Gradient on values
+        self.dinputs = -2 * (y_true - dvalues) / len(dvalues[0])
         # Normalize gradient
         self.dinputs = self.dinputs / len(dvalues)
 
@@ -301,7 +304,7 @@ class Model:
                 f.write(json_object)
                 f.close()
 
-    def dataset(self, path, res_in, res_out, poi, kernel_size, threshold=None):
+    def dataset(self, path, res_in, res_out, poi, kernel_size):
         # Path of dataset
         self.path = path
         # Resolution of input and output image
@@ -309,8 +312,6 @@ class Model:
         self.res_out = [res_out[0], int(res_out[1] * poi)]
         # Kernel size for blur
         self.kernel_size = kernel_size
-        # Threshold for edge detection
-        self.theshold = threshold
         # Pixel of interest cuts the upper part of the image
         self.poi = 1 - poi
 
@@ -319,10 +320,6 @@ class Model:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         image = image[int(image.shape[0] * self.poi) - 1:-1]
         image = cv2.GaussianBlur(image, (self.kernel_size, self.kernel_size), 0)
-
-        # If canny edge detection is desired apply it
-        if self.theshold is not None:
-            image = cv2.Canny(image, self.theshold[0], self.theshold[1])
 
         # Resize image to proper resolution, flatten image and normalise it
         image = cv2.resize(image, (self.res_in[0], self.res_in[1]))
@@ -387,10 +384,8 @@ class Model:
 
             # Write to statistics.json
             f.write(stat_json)
-            f.close()
 
     def train(self, epochs=1, batch_size=None, print_every=1):
-
         # Main training loop
         for epoch in range(1, epochs + 1):
             train_steps = 1
@@ -402,26 +397,34 @@ class Model:
             self.loss.new_pass()
             self.accuracy.new_pass()
 
+            # Create arrays for data
             X = []
             y = []
+            # Path of images and labels
             path_images = fr"{self.path}\train\images"
             path_labels = fr"{self.path}\train\labels"
+            # Get last file of dataset
             list_of_files = glob.glob(fr"{path_labels}\*")
             last_file = list_of_files[-1]
 
             # Iterate over all images in dataset
             for filename in glob.glob(os.path.join(path_images, "*.jpg")):
+                # Read the image, preprocess it and save it to array
                 image = cv2.imread(filename)
                 image = self.image_preprocess(image)
                 X.append(image)
 
+                # Get filename of image
                 filename = os.path.join(path_labels, filename[len(path_images) + 1:])
+                # Read the label image
                 label = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+                # Preprocess label image
                 label = label[int(label.shape[0] * self.poi) - 1:-1]
                 label = label / 255
                 label = np.round(label)
                 label = cv2.resize(label, (self.res_out[0], self.res_out[1]))
                 label = label.reshape(label.shape[0] * label.shape[1])
+                # Append label image to array
                 y.append(label)
 
                 if len(y) == batch_size or filename == last_file:
@@ -451,14 +454,16 @@ class Model:
 
                     # Print a summary
                     if not train_steps % print_every or filename == last_file:
-                        print(f"step: {train_steps}, acc: {accuracy:}, loss: {loss:.3f} (data_loss: {data_loss:.3f}, "
+                        print(f"step: {train_steps}, acc: {accuracy:.5f}, loss: {loss:.3f} (data_loss: {data_loss:.4f}, "
                               f"reg_loss: {reg_loss:.3f}), lr: {self.optimizer.current_learning_rate}")
 
                         # Save statistical information
                         self.save_stat(key="train", accuracy=accuracy, data_loss=data_loss, reg_loss=reg_loss)
 
+                    # Increment index and train_steps
                     self.index += 1
                     train_steps += 1
+                    # Clear array for new training step
                     X = []
                     y = []
 
@@ -480,24 +485,33 @@ class Model:
         self.loss.new_pass()
         self.accuracy.new_pass()
 
+        # Create arrays for data
         X_val = []
         y_val = []
+        # Path of images and labels
         path_images = fr"{self.path}\valid\images"
         path_labels = fr"{self.path}\valid\labels"
+        # Get last file of dataset
         list_of_files = glob.glob(fr"{path_labels}\*")
         last_file = list_of_files[-1]
 
+        # Iterate over all images in dataset
         for filename in glob.glob(os.path.join(path_images, "*.jpg")):
+            # Read the image, preprocess it and save it to array
             image = cv2.imread(filename)
             image = self.image_preprocess(image)
             X_val.append(image)
 
+            # Get filename of image
             filename = os.path.join(path_labels, filename[len(path_images) + 1:])
+            # Read the label image
             label = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
+            # Preprocess label image
             label = label / 255
             label = np.round(label)
             label = cv2.resize(label, (self.res_out[0], self.res_out[1]))
             label = label.reshape(label.shape[0] * label.shape[1])
+            # Append label image to array
             y_val.append(label)
 
             if len(y_val) == batch_size or filename == last_file:
@@ -515,6 +529,7 @@ class Model:
                 predictions = self.output_layer_activation.predictions(output)
                 self.accuracy.calculate(predictions, y_val)
 
+                # Clear array for new training step
                 X_val = []
                 y_val = []
 
@@ -530,7 +545,6 @@ class Model:
         self.save_stat(key="valid", accuracy=valid_accuracy, data_loss=valid_data_loss, reg_loss=0)
 
     def predict(self, path):
-
         # Check whether path is valid
         if not os.path.exists(path):
             print("Invalid path!\n")
@@ -548,15 +562,15 @@ class Model:
         length = int(video_input.get(cv2.CAP_PROP_FRAME_COUNT))
         # Define the codec and create VideoWriter object
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        video_output = cv2.VideoWriter(os.path.join(os.getcwd(), filename + "_output.mp4"), fourcc, 30, (width, height))
+        video_output = cv2.VideoWriter(os.path.join(os.path.dirname(sys.argv[0]), filename + "_output.mp4"), fourcc, 30, (width, height))
         # Create arrays
         X = []
         frames = []
 
+        # Calculate max array size
         max_array_size = int(psutil.virtual_memory().available / height / width / 5)
 
         process = 0
-        printProgressBar(process, length + 1, prefix="Progress:", suffix="Complete", length=50)
 
         while True:
             # Read the video frame by frame
@@ -580,8 +594,7 @@ class Model:
                 # Reshape predictions to 2d array
                 predictions = predictions.reshape(predictions.shape[0], self.res_out[1], self.res_out[0])
                 # Add array filled with zeros that was cut away from the network
-                fill = np.zeros(
-                    (predictions.shape[0], int(self.res_out[1] / (1 - self.poi) * self.poi), self.res_out[0]))
+                fill = np.zeros((predictions.shape[0], int(self.res_out[1] / (1 - self.poi) * self.poi), self.res_out[0]))
                 predictions = np.append(fill, predictions, axis=1)
 
                 # Iterate over all frames
@@ -592,19 +605,19 @@ class Model:
                     frames[i, predict >= 0.5] = [0, 0, 255]
                     # Write frame as video
                     video_output.write(frames[i])
+                    # Increment process
                     process += 1
-                    printProgressBar(process, length + 1, prefix="Progress:", suffix="Complete", length=50)
 
                 # Clear arrays
                 X = []
                 frames = []
 
+                # Calculate new max array size
                 max_array_size = int(psutil.virtual_memory().available / height / width / 5)
 
         # Release everything when job is finished
         video_input.release()
         video_output.release()
-        printProgressBar(length + 1, length + 1, prefix="Progress:", suffix="Complete", length=50)
 
     def forward(self, X, training):
 
@@ -670,40 +683,41 @@ class Model:
 # Instantiate the model
 model = Model()
 
-model.dataset(path=r"D:\Testdataset", res_in=[256, 144], res_out=[256, 144], poi=0.5, kernel_size=3)
+model.dataset(path=r"F:\Curvelanes", res_in=[256, 144], res_out=[256, 144], poi=0.5, kernel_size=3)
+
+regulator = 0.005
 
 # Add layers
-model.add(Layer_Dense(model.res_in[0] * model.res_in[1], 8192, weight_regulator=0.1, bias_regulator=0.1))
+model.add(Layer_Dense(model.res_in[0] * model.res_in[1], 4096, weight_regulator=regulator, bias_regulator=regulator))
 model.add(Activation_ReLU())
-model.add(Layer_Dropout(0.25))
-model.add(Layer_Dense(8192, 8192, weight_regulator=0.1, bias_regulator=0.1))
+model.add(Layer_Dropout(0.15))
+model.add(Layer_Dense(4096, 2048, weight_regulator=regulator, bias_regulator=regulator))
 model.add(Activation_ReLU())
-model.add(Layer_Dropout(0.25))
-model.add(Layer_Dense(8192, 8192, weight_regulator=0.1, bias_regulator=0.1))
+model.add(Layer_Dropout(0.15))
+model.add(Layer_Dense(2048, 2048, weight_regulator=regulator, bias_regulator=regulator))
 model.add(Activation_ReLU())
-model.add(Layer_Dropout(0.25))
-model.add(Layer_Dense(8192, 8192, weight_regulator=0.1, bias_regulator=0.1))
+model.add(Layer_Dropout(0.15))
+model.add(Layer_Dense(2048, 4096, weight_regulator=regulator, bias_regulator=regulator))
 model.add(Activation_ReLU())
-model.add(Layer_Dropout(0.25))
-model.add(Layer_Dense(8192, model.res_out[0] * model.res_out[1]))
+model.add(Layer_Dropout(0.15))
+model.add(Layer_Dense(4096, model.res_out[0] * model.res_out[1]))
 model.add(Activation_Sigmoid())
 
 # Set loss and optimizer objects
 model.set(loss=Loss_UnbalancedSegmentation(),
-          optimizer=Optimizer_Adam(learning_rate=0.001, decay=5e-4, epsilon=1e-7, beta_1=0.825, beta_2=0.9),
+          optimizer=Optimizer_Adam(learning_rate=0.01, decay=5e-4, epsilon=5e-6, beta_1=0.9, beta_2=0.8),
           stats=True)
 
 # Finalize the model
 model.finalize()
 
 # Train the model
-model.train(epochs=100000, batch_size=4, print_every=3)
+model.train(epochs=100000, batch_size=16, print_every=1)
 
-# Save the model
+r'''# Save the model
 model.save(r"F:\Curvelanes\lane_detection.model")
 
-# Load the model
 model = Model.load(r"D:\Curvelanes\1.2.model")
 
 # Use the model to predict data
-model.predict(os.path.join(os.getcwd(), "test.mp4"))
+model.predict(os.path.join(os.getcwd(), "test.mp4"))'''
