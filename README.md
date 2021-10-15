@@ -3,13 +3,12 @@
 ### Manual
 <ol>
   <li>Download the newest <i>program.py</i> file from the <a href="https://github.com/LevinHinder/Neural-Network-For-Lane-Detection/releases">release</a>.</li>
-  <li>Donwload the newest <a href="https://drive.google.com/drive/folders/16IIDijFDWoHC26rXpmCCL62cztuIQiXO?usp=sharing">model</a>.</li>
   <li>Download the newest <a href="https://www.python.org/downloads/">Python Interpreter</a>. Make sure you can pip install.</li>
-  <li>Merge both <i>lane_detection.model</i> and <i>program.py</i> into the same folder.</li>
-  <li>Run <i>program.py</i> in the Python console. The program will automaticly install all necessary libraries by itself or, if needed, update them. The startup process can take a view minutes and will only work if both <i>program.py</i> and <i>lane_detection.model</i> are in the same folder.</li>
+  <li>Run <i>program.py</i> in the Python console. The program will automaticly install all necessary libraries by itself or, if needed, update them. It will also automaticly install the model. The startup process can take a view minutes.</li>
   <li>Once the program has loaded it will show you <code>path:</code>. Write there the full path to your video file you want to process.<br>E.g. <code>path: C:\Users\Levin\Downloads\test.mp4</code></li>
   <li>Wait until the program has finished. As soon as it's done, it will save the new video file in the directory where <i>program.py</i> is saved. It is named <i>original_file_name</i>_output.mp4</li>
   <li>To exit the program write <code>exit</code> as path.</li>
+  <li>To uninstall the program write <code>uninstall</code> as path.</li>
 </ol>
 
 
