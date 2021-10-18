@@ -18,7 +18,7 @@ Start the programme again. If the programme still crashes after the second resta
 <code>ERROR: Automatic folder to save and load model not found</code><br>
 Specify a complete storage path where the model is to be saved. Remember this path as you will need it for future uses of the programme.<br><br>
 <code>ERROR: Download failed</code><br>
-Start the programme again. If the programme still crashes after the second restart, download the <a href="https://drive.google.com/file/d/1tWqXcNXYtYrVTY2XL9iETIyFOwfU9kSr/view?usp=sharing">v.1.3.0.model</a> file with the following link. Save the file in any folder. Finally, enter the folder path in the console when prompted. IMPORTANT: do not change the name of the .model file.<br><br>
+Start the programme again. If the programme still crashes after the second restart, download the <a href="https://drive.google.com/file/d/1tWqXcNXYtYrVTY2XL9iETIyFOwfU9kSr/view?usp=sharing">v.1.3.0.model</a> file. Save the file in any folder. Finally, enter the folder path in the console when prompted. IMPORTANT: do not change the name of the .model file.<br><br>
 <code>ERROR: Model not found</code><br>
 Check the storage path of the model you specified. Also check the name of the downloaded file.<br>
 
