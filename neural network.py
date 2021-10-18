@@ -2,10 +2,10 @@ import numpy as np
 import os
 import cv2
 import copy
-import glob
 import json
 import dill
 import psutil
+import sys
 
 
 class Layer_Dense:
@@ -315,15 +315,22 @@ class Model:
         # Pixel of interest cuts the upper part of the image
         self.poi = 1 - poi
 
-    def image_preprocess(self, image):
+    def image_preprocess(self, image, label=False):
         # Convert image to grayscale, cut upper part away and apply blur
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         image = image[int(image.shape[0] * self.poi) - 1:-1]
-        image = cv2.GaussianBlur(image, (self.kernel_size, self.kernel_size), 0)
 
-        # Resize image to proper resolution, flatten image and normalise it
+        if not label:
+            # If it's not a label, apply blur and normalise values
+            image = cv2.GaussianBlur(image, (self.kernel_size, self.kernel_size), 0)
+            image = (image - 127.5) / 127.5
+        else:
+            # Label has only 0s and 1s as values
+            image[image >= 1] = 1
+
+        # Resize image to proper resolution and flatten it
         image = cv2.resize(image, (self.res_in[0], self.res_in[1]))
-        image = (image.reshape(-1).astype(np.float32) - 127.5) / 127.5
+        image = image.reshape(-1).astype(np.float32)
 
         return image
 
@@ -361,12 +368,11 @@ class Model:
         # Update loss object with trainable layers
         self.loss.remember_trainable_layers(self.trainable_layers)
 
-    def save_stat(self, key, accuracy, data_loss, reg_loss):
+    def save_stat(self, key, accuracy, data_loss, reg_loss=0):
         # Open statistics.json in read mode
         with open(os.path.join(os.getcwd(), "statistics.json"), "r") as f:
             # Read everything and convert json string to python dict
             stat_json = json.loads(f.read())
-            f.close()
 
         with open(os.path.join(os.getcwd(), "statistics.json"), "w") as f:
             # Create data to be written
@@ -385,7 +391,21 @@ class Model:
             # Write to statistics.json
             f.write(stat_json)
 
-    def train(self, epochs=1, batch_size=None, print_every=1):
+    def train(self, epochs=1, batch_size=None, print_every=1, save_every=1000):
+        # Create arrays for data
+        X = []
+        y = []
+        # Path of images and labels
+        path_images = fr"{self.path}\train\images"
+        path_labels = fr"{self.path}\train\labels"
+        # Get last file of dataset
+        last_file = os.path.join(path_labels, os.listdir(path_images)[0])
+        control_image = cv2.imread(os.path.join(path_images, os.listdir(path_images)[0]))
+        control_image = self.image_preprocess(control_image, False)
+
+        if not os.path.isdir(fr"{self.path}\control image"):
+            os.mkdir(fr"{self.path}\control image")
+
         # Main training loop
         for epoch in range(1, epochs + 1):
             train_steps = 1
@@ -397,34 +417,15 @@ class Model:
             self.loss.new_pass()
             self.accuracy.new_pass()
 
-            # Create arrays for data
-            X = []
-            y = []
-            # Path of images and labels
-            path_images = fr"{self.path}\train\images"
-            path_labels = fr"{self.path}\train\labels"
-            # Get last file of dataset
-            list_of_files = glob.glob(fr"{path_labels}\*")
-            last_file = list_of_files[-1]
-
             # Iterate over all images in dataset
-            for filename in glob.glob(os.path.join(path_images, "*.jpg")):
+            for filename in os.listdir(path_images):
                 # Read the image, preprocess it and save it to array
-                image = cv2.imread(filename)
-                image = self.image_preprocess(image)
+                image = cv2.imread(os.path.join(path_images, filename))
+                image = self.image_preprocess(image, False)
                 X.append(image)
 
-                # Get filename of image
-                filename = os.path.join(path_labels, filename[len(path_images) + 1:])
-                # Read the label image
-                label = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-                # Preprocess label image
-                label = label[int(label.shape[0] * self.poi) - 1:-1]
-                label = label / 255
-                label = np.round(label)
-                label = cv2.resize(label, (self.res_out[0], self.res_out[1]))
-                label = label.reshape(label.shape[0] * label.shape[1])
-                # Append label image to array
+                label = cv2.imread(os.path.join(path_labels, filename))
+                label = self.image_preprocess(label, True)
                 y.append(label)
 
                 if len(y) == batch_size or filename == last_file:
@@ -446,11 +447,15 @@ class Model:
                     # Perform backward pass
                     self.backward(output, y)
 
-                    # Optimize (update parameters)
+                    # Optimise (update parameters)
                     self.optimizer.pre_update_params()
                     for layer in self.trainable_layers:
                         self.optimizer.update_params(layer)
                     self.optimizer.post_update_params()
+
+                    # Save a backup of the model
+                    if not self.index % save_every:
+                        model.save(fr"{self.path}\{epoch}.{train_steps}.model")
 
                     # Print a summary
                     if not train_steps % print_every or filename == last_file:
@@ -459,6 +464,12 @@ class Model:
 
                         # Save statistical information
                         self.save_stat(key="train", accuracy=accuracy, data_loss=data_loss, reg_loss=reg_loss)
+
+                        control_predict = self.forward(control_image, training=False)
+                        control_predict = self.output_layer_activation.predictions(control_predict)
+                        control_predict *= 255
+                        control_predict = control_predict.reshape(self.res_out[1], self.res_out[0])
+                        cv2.imwrite(fr"{self.path}\control image\{epoch}.{train_steps}.png", control_predict)
 
                     # Increment index and train_steps
                     self.index += 1
@@ -492,26 +503,17 @@ class Model:
         path_images = fr"{self.path}\valid\images"
         path_labels = fr"{self.path}\valid\labels"
         # Get last file of dataset
-        list_of_files = glob.glob(fr"{path_labels}\*")
-        last_file = list_of_files[-1]
+        last_file = os.path.join(path_labels, os.listdir(path_images)[0])
 
         # Iterate over all images in dataset
-        for filename in glob.glob(os.path.join(path_images, "*.jpg")):
+        for filename in os.listdir(path_images):
             # Read the image, preprocess it and save it to array
-            image = cv2.imread(filename)
-            image = self.image_preprocess(image)
+            image = cv2.imread(os.path.join(path_images, filename))
+            image = self.image_preprocess(image, False)
             X_val.append(image)
 
-            # Get filename of image
-            filename = os.path.join(path_labels, filename[len(path_images) + 1:])
-            # Read the label image
-            label = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-            # Preprocess label image
-            label = label / 255
-            label = np.round(label)
-            label = cv2.resize(label, (self.res_out[0], self.res_out[1]))
-            label = label.reshape(label.shape[0] * label.shape[1])
-            # Append label image to array
+            label = cv2.imread(os.path.join(path_labels, filename))
+            label = self.image_preprocess(label, True)
             y_val.append(label)
 
             if len(y_val) == batch_size or filename == last_file:
@@ -542,9 +544,13 @@ class Model:
         print(f"validation, acc: {valid_accuracy:.3f}, loss: {valid_loss:.3f}\n")
 
         # Save statistical information
-        self.save_stat(key="valid", accuracy=valid_accuracy, data_loss=valid_data_loss, reg_loss=0)
+        self.save_stat(key="valid", accuracy=valid_accuracy, data_loss=valid_data_loss)
 
     def predict(self, path):
+        # ==========================================================================================================
+        import time
+        start_time = time.time()
+        # ==========================================================================================================
         # Check whether path is valid
         if not os.path.exists(path):
             print("Invalid path!\n")
@@ -567,10 +573,11 @@ class Model:
         X = []
         frames = []
 
-        # Calculate max array size
+        # Calculate new max array size
         max_array_size = int(psutil.virtual_memory().available / height / width / 5)
 
         process = 0
+        printProgressBar(process, length + 1, prefix="Progress:", suffix="Complete", length=50)
 
         while True:
             # Read the video frame by frame
@@ -594,7 +601,8 @@ class Model:
                 # Reshape predictions to 2d array
                 predictions = predictions.reshape(predictions.shape[0], self.res_out[1], self.res_out[0])
                 # Add array filled with zeros that was cut away from the network
-                fill = np.zeros((predictions.shape[0], int(self.res_out[1] / (1 - self.poi) * self.poi), self.res_out[0]))
+                fill = np.zeros(
+                    (predictions.shape[0], int(self.res_out[1] / (1 - self.poi) * self.poi), self.res_out[0]))
                 predictions = np.append(fill, predictions, axis=1)
 
                 # Iterate over all frames
@@ -605,8 +613,9 @@ class Model:
                     frames[i, predict >= 0.5] = [0, 0, 255]
                     # Write frame as video
                     video_output.write(frames[i])
-                    # Increment process
+                    # Increment process and print progressbar
                     process += 1
+                    printProgressBar(process, length + 1, prefix="Progress:", suffix="Complete", length=50)
 
                 # Clear arrays
                 X = []
@@ -618,6 +627,13 @@ class Model:
         # Release everything when job is finished
         video_input.release()
         video_output.release()
+        printProgressBar(length + 1, length + 1, prefix="Progress:", suffix="Complete", length=50)
+        print("\n")
+        # ==========================================================================================================
+        end_time = time.time()
+        time_lapsed = end_time - start_time
+        print(time_lapsed)
+        # ==========================================================================================================
 
     def forward(self, X, training):
 
@@ -680,44 +696,50 @@ class Model:
         return model
 
 
+# Print iterations progress
+def printProgressBar(iteration, total, prefix="", suffix="", decimals=1, length=100, fill="█"):
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + "-" * (length - filledLength)
+    print(f"\r{prefix} |{bar}| {percent}% {suffix}", end="\r")
+
+
 # Instantiate the model
 model = Model()
 
-model.dataset(path=r"F:\Curvelanes", res_in=[256, 144], res_out=[256, 144], poi=0.5, kernel_size=3)
+model.dataset(path=r"C:\Users\Levin\Downloads\Dataset 03", res_in=[273, 98], res_out=[273, 98], poi=0.5, kernel_size=3)
 
-regulator = 0.005
+regulator = 0.02
 
 # Add layers
-model.add(Layer_Dense(model.res_in[0] * model.res_in[1], 4096, weight_regulator=regulator, bias_regulator=regulator))
+model.add(Layer_Dense(model.res_in[0] * model.res_in[1], 8192, weight_regulator=regulator, bias_regulator=regulator))
+model.add(Layer_Dense(8192, 8192, weight_regulator=regulator, bias_regulator=regulator))
 model.add(Activation_ReLU())
 model.add(Layer_Dropout(0.15))
-model.add(Layer_Dense(4096, 2048, weight_regulator=regulator, bias_regulator=regulator))
+model.add(Layer_Dense(8192, 8192, weight_regulator=regulator, bias_regulator=regulator))
 model.add(Activation_ReLU())
 model.add(Layer_Dropout(0.15))
-model.add(Layer_Dense(2048, 2048, weight_regulator=regulator, bias_regulator=regulator))
+model.add(Layer_Dense(8192, 8192, weight_regulator=regulator, bias_regulator=regulator))
 model.add(Activation_ReLU())
 model.add(Layer_Dropout(0.15))
-model.add(Layer_Dense(2048, 4096, weight_regulator=regulator, bias_regulator=regulator))
-model.add(Activation_ReLU())
-model.add(Layer_Dropout(0.15))
-model.add(Layer_Dense(4096, model.res_out[0] * model.res_out[1]))
+model.add(Layer_Dense(8192, model.res_out[0] * model.res_out[1]))
 model.add(Activation_Sigmoid())
 
 # Set loss and optimizer objects
 model.set(loss=Loss_UnbalancedSegmentation(),
-          optimizer=Optimizer_Adam(learning_rate=0.01, decay=5e-4, epsilon=5e-6, beta_1=0.9, beta_2=0.8),
+          optimizer=Optimizer_Adam(learning_rate=0.0006, decay=5e-4, epsilon=1e-6, beta_1=0.8, beta_2=0.8),
           stats=True)
 
 # Finalize the model
 model.finalize()
 
 # Train the model
-model.train(epochs=100000, batch_size=16, print_every=1)
+model.train(epochs=100000, batch_size=8, print_every=1, save_every=1000)
 
-r'''# Save the model
+# Save the model
 model.save(r"F:\Curvelanes\lane_detection.model")
 
 model = Model.load(r"D:\Curvelanes\1.2.model")
 
 # Use the model to predict data
-model.predict(os.path.join(os.getcwd(), "test.mp4"))'''
+model.predict(r"C:\Users\Levin\Downloads\test.mp4")
