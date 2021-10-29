@@ -725,7 +725,7 @@ def printProgressBar(iteration, total, prefix="", suffix=""):
 # Instantiate the model
 model = Model()
 
-model.dataset(path=r"C:\Users\Levin\Downloads\Dataset 03", res_in=[256, 144], res_out=[256, 144], roi=0.5, kernel_size=3)
+model.dataset(path=r"F:\Datasets\Lane Detection\CurveLanes", res_in=[256, 144], res_out=[256, 144], roi=0.5, kernel_size=3)
 
 regulator = 0.02
 
@@ -748,7 +748,7 @@ model.set(loss=Loss_UnbalancedSegmentation(),
           optimiser=Optimizer_Adam(learning_rate=0.0006, decay=5e-4, epsilon=1e-6, beta_1=0.8, beta_2=0.8),
           accuracy=Accuracy_Absolute(),
           stats=True,
-          ctrl_img=r"C:\Users\Levin\Downloads\Dataset 03\train\images\0A2csn66EuIdDBis7ds63oVF7.png")
+          ctrl_img=r"F:\Datasets\Lane Detection\CurveLanes\train\images\000a9e2091e2902d988ffdd87258fc29.jpg")
 
 # Finalise the model
 model.finalise()
@@ -757,10 +757,10 @@ model.finalise()
 model.train(epochs=100000, batch_size=8, print_every=1, save_every=1000)
 
 # Save the model
-model.save(r"F:\Curvelanes\lane_detection.model")
+model.save(r"F:\Datasets\Lane Detection\CurveLanes\lane_detection.model")
 
 # Load a saved model
-model = Model.load(r"D:\Curvelanes\1.2.model")
+model = Model.load(r"F:\Datasets\Lane Detection\CurveLanes\lane_detection.model")
 
 # Use the model to predict data
-model.predict(r"C:\Users\Levin\Downloads\test.mp4")
+model.predict(r"F:\Datasets\Lane Detection\CurveLanes\test.mp4")
