@@ -22,7 +22,7 @@ class Layer_Dense:
         # Save input values
         self.inputs = inputs
         # Calculate output values
-        self.output = np.dot(inputs, self.weights) + self.biases
+        self.outputs = np.dot(inputs, self.weights) + self.biases
 
     def backward(self, dvalues):
         # Gradients on parameters
@@ -49,13 +49,13 @@ class Layer_Dropout:
 
         # If not in training mode deactivate dropout
         if not training:
-            self.output = inputs.copy()
+            self.outputs = inputs.copy()
             return
 
         # Generate and save scaled mask
         self.binary_mask = np.random.binomial(1, self.rate, size=inputs.shape) / self.rate
         # Apply mask to output values
-        self.output = inputs * self.binary_mask
+        self.outputs = inputs * self.binary_mask
 
     def backward(self, dvalues):
         # Gradient on values
@@ -65,8 +65,8 @@ class Layer_Dropout:
 class Layer_Input:
 
     def forward(self, inputs, training):
-        # No calculation needed. Mark inputs as output
-        self.output = inputs
+        # No calculation needed. Mark inputs as outputs
+        self.outputs = inputs
 
 
 class Activation_ReLU:
@@ -75,7 +75,7 @@ class Activation_ReLU:
         # Save input values
         self.inputs = inputs
         # Calculate output values
-        self.output = np.maximum(0, inputs)
+        self.outputs = np.maximum(0, inputs)
 
     def backward(self, dvalues):
         # Copy dvalues
@@ -90,21 +90,21 @@ class Activation_Sigmoid:
         # Save input values
         self.inputs = inputs
         # Calculate output values
-        self.output = 1 / (1 + np.exp(-inputs))
+        self.outputs = 1 / (1 + np.exp(-inputs))
 
     def backward(self, dvalues):
         # Gradient on values
-        self.dinputs = dvalues * (1 - self.output) * self.output
+        self.dinputs = dvalues * (1 - self.outputs) * self.outputs
 
     def predictions(self, outputs):
         # Round output values to 1 or 0
         return (outputs > 0.5) * 1
 
 
-class Optimizer_Adam:
+class Optimiser_Adam:
 
     def __init__(self, learning_rate=0.001, decay=0., epsilon=1e-7, beta_1=0.9, beta_2=0.999):
-        # Initialise optimizer settings
+        # Initialise optimiser settings
         self.learning_rate = learning_rate
         self.current_learning_rate = learning_rate
         self.decay = decay
@@ -163,9 +163,9 @@ class Loss:
         # Set/remember trainable layers
         self.trainable_layers = trainable_layers
 
-    def calculate(self, output, y_true):
+    def calculate(self, outputs, target_outputs):
         # Calculate loss for each sample
-        sample_losses = self.forward(output, y_true)
+        sample_losses = self.forward(outputs, target_outputs)
         # Calculate mean loss over all samples
         data_loss = np.mean(sample_losses)
 
@@ -189,71 +189,66 @@ class Loss:
 
 class Loss_BinaryCrossentropy(Loss):
 
-    def forward(self, y_pred, y_true):
+    def forward(self, outputs, target_outputs):
         # Clip data to prevent division by 0
         # Clip both sides to not drag mean towards any value
-        y_pred_clipped = np.clip(y_pred, 1e-7, 1 - 1e-7)
+        outputs_clipped = np.clip(outputs, 1e-7, 1 - 1e-7)
 
         # Calculate sample-wise loss
-        sample_losses = -(y_true * np.log(y_pred_clipped) + (1 - y_true) * np.log(1 - y_pred_clipped))
+        sample_losses = -(target_outputs * np.log(outputs_clipped) + (1 - target_outputs) * np.log(1 - outputs_clipped))
         sample_losses = np.mean(sample_losses, axis=-1)
 
         # Return losses
         return sample_losses
 
-    def backward(self, dvalues, y_true):
+    def backward(self, dvalues, target_outputs):
         # Clip data to prevent division by 0
         # Clip both sides to not drag mean towards any value
         clipped_dvalues = np.clip(dvalues, 1e-7, 1 - 1e-7)
 
         # Calculate gradient
-        self.dinputs = -(y_true / clipped_dvalues - (1 - y_true) / (1 - clipped_dvalues)) / len(dvalues[0])
-        # Normalize gradient
+        self.dinputs = -(target_outputs / clipped_dvalues - (1 - target_outputs) / (1 - clipped_dvalues)) / len(dvalues[0])
+        # Normalise gradient
         self.dinputs = self.dinputs / len(dvalues)
 
 
 class Loss_MeanSquaredError(Loss):
 
-    def forward(self, y_pred, y_true):
+    def forward(self, outputs, target_outputs):
         # Calculate loss
-        sample_losses = np.mean((y_true - y_pred) ** 2, axis=-1)
+        sample_losses = np.mean((target_outputs - outputs) ** 2, axis=-1)
 
         # Return losses
         return sample_losses
 
-    def backward(self, dvalues, y_true):
+    def backward(self, dvalues, target_outputs):
         # Gradient on values
-        self.dinputs = -2 * (y_true - dvalues) / len(dvalues[0])
-        # Normalize gradient
+        self.dinputs = -2 * (target_outputs - dvalues) / len(dvalues[0])
+        # Normalise gradient
         self.dinputs = self.dinputs / len(dvalues)
 
 
 class Loss_UnbalancedSegmentation(Loss):
 
-    def forward(self, output, y_true):
-        # Normalise output
-        output = y_true - output
+    def forward(self, outputs, target_outputs):
+        # Normalise outputs
+        outputs = target_outputs - outputs
         # Calculate sample-wise loss
-        sample_losses = 1 / 32 * (output + 2) ** 4 - (output + 2) + 1.5
+        sample_losses = 1 / 32 * (outputs + 2) ** 4 - (outputs + 2) + 1.5
         sample_losses = np.mean(sample_losses, axis=-1)
 
         return sample_losses
 
-    def backward(self, dvalues, y_true):
+    def backward(self, dvalues, target_outputs):
         # Gradient on values
-        self.dinputs = (1 / 8 * (dvalues - y_true - 2) ** 3 + 0.5) / len(dvalues[0]) / len(dvalues)
+        self.dinputs = (1 / 8 * (dvalues - target_outputs - 2) ** 3 + 0.5) / len(dvalues[0]) / len(dvalues)
 
 
 class Accuracy:
 
-    def calculate(self, predictions, y_true):
-        # Calculate correct predicted ones and zeros
-        identical = predictions == y_true
-        identical_1 = identical * predictions
-        identical_0 = identical * (abs(predictions - 1))
-
-        # Calculate accuracy over all samples
-        accuracy = (np.mean(identical_1) / np.mean(y_true) + np.mean(identical_0) / (1 - np.mean(y_true))) / 2
+    def calculate(self, predictions, target_outputs):
+        # Get accuracy over all samples
+        accuracy = self.get_accuracy(predictions, target_outputs)
 
         # Update accumulated
         self.accumulated_sum += accuracy
@@ -273,6 +268,27 @@ class Accuracy:
         self.accumulated_count = 0
 
 
+class Accuracy_Absolute(Accuracy):
+
+    def get_accuracy(self, predictions, target_outputs):
+        identical = predictions == target_outputs
+        accuracy = np.mean(identical)
+        return accuracy
+
+
+class Accuracy_UnbalancedSegmentation(Accuracy):
+
+    def get_accuracy(self, predictions, target_outputs):
+        # Calculate correct predicted ones and zeros
+        identical = predictions == target_outputs
+        identical_1 = identical * predictions
+        identical_0 = identical * (abs(predictions - 1))
+
+        # Calculate accuracy over all samples
+        accuracy = (np.mean(identical_1) / np.mean(target_outputs) + np.mean(identical_0) / (1 - np.mean(target_outputs))) / 2
+        return accuracy
+
+
 class Model:
 
     def __init__(self):
@@ -284,14 +300,16 @@ class Model:
         # Add objects to the model
         self.layers.append(layer)
 
-    def set(self, *, loss=None, optimizer=None, stats=False):
-        # Set loss, optimizer and accuracy
+    def set(self, loss, optimiser, accuracy, stats=False, ctrl_img=None):
+        # Set loss, optimiser and accuracy
         self.loss = loss
-        self.optimizer = optimizer
-        self.accuracy = Accuracy()
+        self.optimiser = optimiser
+        self.accuracy = accuracy
+        self.stats = stats
+        self.ctrl_img = ctrl_img
 
-        # If stats are desired create statistics.json
-        if stats:
+        # If stats are desired create or clear statistics.json
+        if self.stats:
             with open(os.path.join(os.getcwd(), "statistics.json"), "w") as f:
                 # Create standard dictionary
                 dictionary = {
@@ -302,23 +320,27 @@ class Model:
                 json_object = json.dumps(dictionary, indent=4)
                 # Writing to statistics.json
                 f.write(json_object)
-                f.close()
 
-    def dataset(self, path, res_in, res_out, poi, kernel_size):
+        # Load control image
+        if self.ctrl_img:
+            self.ctrl_img = cv2.imread(self.ctrl_img)
+            self.ctrl_img = self.image_preprocess(self.ctrl_img, False)
+
+    def dataset(self, path, res_in, res_out, roi, kernel_size):
         # Path of dataset
         self.path = path
         # Resolution of input and output image
-        self.res_in = [res_in[0], int(res_in[1] * poi)]
-        self.res_out = [res_out[0], int(res_out[1] * poi)]
+        self.res_in = [res_in[0], int(res_in[1] * roi)]
+        self.res_out = [res_out[0], int(res_out[1] * roi)]
         # Kernel size for blur
         self.kernel_size = kernel_size
-        # Pixel of interest cuts the upper part of the image
-        self.poi = 1 - poi
+        # Region of interest cuts the upper part of the image
+        self.roi = 1 - roi
 
-    def image_preprocess(self, image, label=False):
+    def image_preprocess(self, image, label):
         # Convert image to grayscale, cut upper part away and apply blur
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        image = image[int(image.shape[0] * self.poi) - 1:-1]
+        image = image[int(image.shape[0] * self.roi) - 1:-1]
 
         if not label:
             # If it's not a label, apply blur and normalise values
@@ -334,7 +356,7 @@ class Model:
 
         return image
 
-    def finalize(self):
+    def finalise(self):
         # Create and set the input layer
         self.input_layer = Layer_Input()
 
@@ -378,7 +400,7 @@ class Model:
             # Create data to be written
             dictionary = {
                 "index": self.index,
-                "learning_rate": self.optimizer.current_learning_rate,
+                "learning_rate": self.optimiser.current_learning_rate,
                 "accuracy": accuracy,
                 "data_loss": data_loss,
                 "reg_loss": reg_loss,
@@ -393,15 +415,13 @@ class Model:
 
     def train(self, epochs=1, batch_size=None, print_every=1, save_every=1000):
         # Create arrays for data
-        X = []
-        y = []
+        inputs = []
+        target_outputs = []
         # Path of images and labels
         path_images = fr"{self.path}\train\images"
         path_labels = fr"{self.path}\train\labels"
         # Get last file of dataset
         last_file = os.path.join(path_labels, os.listdir(path_images)[0])
-        control_image = cv2.imread(os.path.join(path_images, os.listdir(path_images)[0]))
-        control_image = self.image_preprocess(control_image, False)
 
         if not os.path.isdir(fr"{self.path}\control image"):
             os.mkdir(fr"{self.path}\control image")
@@ -422,61 +442,65 @@ class Model:
                 # Read the image, preprocess it and save it to array
                 image = cv2.imread(os.path.join(path_images, filename))
                 image = self.image_preprocess(image, False)
-                X.append(image)
+                inputs.append(image)
 
+                # Read the label, preprocess it and save it to array
                 label = cv2.imread(os.path.join(path_labels, filename))
                 label = self.image_preprocess(label, True)
-                y.append(label)
+                target_outputs.append(label)
 
-                if len(y) == batch_size or filename == last_file:
+                if len(target_outputs) == batch_size or filename == last_file:
                     # Convert the data to proper numpy arrays
-                    X = np.array(X)
-                    y = np.array(y)
+                    inputs = np.array(inputs)
+                    target_outputs = np.array(target_outputs)
 
                     # Perform the forward pass
-                    output = self.forward(X, training=True)
+                    outputs = self.forward(inputs, training=True)
 
                     # Calculate loss
-                    data_loss, reg_loss = self.loss.calculate(output, y)
+                    data_loss, reg_loss = self.loss.calculate(outputs, target_outputs)
                     loss = data_loss + reg_loss
 
                     # Get predictions and calculate an accuracy
-                    predictions = self.output_layer_activation.predictions(output)
-                    accuracy = self.accuracy.calculate(predictions, y)
+                    predictions = self.output_layer_activation.predictions(outputs)
+                    accuracy = self.accuracy.calculate(predictions, target_outputs)
 
                     # Perform backward pass
-                    self.backward(output, y)
+                    self.backward(outputs, target_outputs)
 
                     # Optimise (update parameters)
-                    self.optimizer.pre_update_params()
+                    self.optimiser.pre_update_params()
                     for layer in self.trainable_layers:
-                        self.optimizer.update_params(layer)
-                    self.optimizer.post_update_params()
+                        self.optimiser.update_params(layer)
+                    self.optimiser.post_update_params()
 
                     # Save a backup of the model
                     if not self.index % save_every:
-                        model.save(fr"{self.path}\{epoch}.{train_steps}.model")
+                        self.save(fr"{self.path}\{epoch}.{train_steps}.model")
 
-                    # Print a summary
-                    if not train_steps % print_every or filename == last_file:
-                        print(f"step: {train_steps}, acc: {accuracy:.5f}, loss: {loss:.3f} (data_loss: {data_loss:.4f}, "
-                              f"reg_loss: {reg_loss:.3f}), lr: {self.optimizer.current_learning_rate}")
-
-                        # Save statistical information
+                    # Save statistical information
+                    if self.stats:
                         self.save_stat(key="train", accuracy=accuracy, data_loss=data_loss, reg_loss=reg_loss)
 
-                        control_predict = self.forward(control_image, training=False)
+                    # Process control image
+                    if self.ctrl_img.any():
+                        control_predict = self.forward(self.ctrl_img, training=False)
                         control_predict = self.output_layer_activation.predictions(control_predict)
                         control_predict *= 255
                         control_predict = control_predict.reshape(self.res_out[1], self.res_out[0])
                         cv2.imwrite(fr"{self.path}\control image\{epoch}.{train_steps}.png", control_predict)
 
+                    # Print a summary
+                    if not train_steps % print_every or filename == last_file:
+                        print(f"step: {train_steps}, acc: {accuracy:.5f}, loss: {loss:.3f} (data_loss: {data_loss:.4f}, "
+                              f"reg_loss: {reg_loss:.3f}), lr: {self.optimiser.current_learning_rate}")
+
                     # Increment index and train_steps
                     self.index += 1
                     train_steps += 1
                     # Clear array for new training step
-                    X = []
-                    y = []
+                    inputs = []
+                    target_outputs = []
 
             # Get epoch loss and accuracy
             epoch_data_loss, epoch_reg_loss = self.loss.calculate_accumulated()
@@ -485,20 +509,19 @@ class Model:
 
             # Print a summary of epoch
             print(f"training, acc: {epoch_accuracy:.3f}, loss: {epoch_loss:.3f} (data_loss: {epoch_data_loss:.3f}, "
-                  f"reg_loss: {epoch_reg_loss:.3f}), lr: {self.optimizer.current_learning_rate}")
+                  f"reg_loss: {epoch_reg_loss:.3f}), lr: {self.optimiser.current_learning_rate}")
 
             # Evaluate the model
             self.evaluate(batch_size=batch_size)
 
-    # Evaluates the model using passed-in dataset
     def evaluate(self, batch_size=None):
         # Reset accumulated values in loss and accuracy objects
         self.loss.new_pass()
         self.accuracy.new_pass()
 
         # Create arrays for data
-        X_val = []
-        y_val = []
+        inputs = []
+        target_outputs = []
         # Path of images and labels
         path_images = fr"{self.path}\valid\images"
         path_labels = fr"{self.path}\valid\labels"
@@ -510,30 +533,30 @@ class Model:
             # Read the image, preprocess it and save it to array
             image = cv2.imread(os.path.join(path_images, filename))
             image = self.image_preprocess(image, False)
-            X_val.append(image)
+            inputs.append(image)
 
             label = cv2.imread(os.path.join(path_labels, filename))
             label = self.image_preprocess(label, True)
-            y_val.append(label)
+            target_outputs.append(label)
 
-            if len(y_val) == batch_size or filename == last_file:
+            if len(target_outputs) == batch_size or filename == last_file:
                 # Convert the data to proper numpy arrays
-                X_val = np.array(X_val)
-                y_val = np.array(y_val)
+                inputs = np.array(inputs)
+                target_outputs = np.array(target_outputs)
 
                 # Perform the forward pass
-                output = self.forward(X_val, training=False)
+                outputs = self.forward(inputs, training=False)
 
                 # Calculate the loss
-                self.loss.calculate(output, y_val)
+                self.loss.calculate(outputs, target_outputs)
 
                 # Get predictions and calculate an accuracy
-                predictions = self.output_layer_activation.predictions(output)
-                self.accuracy.calculate(predictions, y_val)
+                predictions = self.output_layer_activation.predictions(outputs)
+                self.accuracy.calculate(predictions, target_outputs)
 
                 # Clear array for new training step
-                X_val = []
-                y_val = []
+                inputs = []
+                target_outputs = []
 
         # Get validation loss and accuracy
         valid_data_loss, valid_reg_loss = self.loss.calculate_accumulated()
@@ -544,13 +567,10 @@ class Model:
         print(f"validation, acc: {valid_accuracy:.3f}, loss: {valid_loss:.3f}\n")
 
         # Save statistical information
-        self.save_stat(key="valid", accuracy=valid_accuracy, data_loss=valid_data_loss)
+        if self.stats:
+            self.save_stat(key="valid", accuracy=valid_accuracy, data_loss=valid_data_loss)
 
     def predict(self, path):
-        # ==========================================================================================================
-        import time
-        start_time = time.time()
-        # ==========================================================================================================
         # Check whether path is valid
         if not os.path.exists(path):
             print("Invalid path!\n")
@@ -570,14 +590,14 @@ class Model:
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         video_output = cv2.VideoWriter(os.path.join(os.path.dirname(sys.argv[0]), filename + "_output.mp4"), fourcc, 30, (width, height))
         # Create arrays
-        X = []
+        inputs = []
         frames = []
 
         # Calculate new max array size
         max_array_size = int(psutil.virtual_memory().available / height / width / 5)
 
         process = 0
-        printProgressBar(process, length + 1, prefix="Progress:", suffix="Complete", length=50)
+        printProgressBar(process, length + 1, prefix="Progress:", suffix="Complete")
 
         while True:
             # Read the video frame by frame
@@ -586,28 +606,28 @@ class Model:
                 break
 
             # Preprocess frame and save it
-            X.append(self.image_preprocess(frame))
+            inputs.append(self.image_preprocess(frame))
             # Save original frame
             frames.append(frame)
 
-            if not len(X) % max_array_size or process + len(X) == length:
+            if not len(inputs) % max_array_size or process + len(inputs) == length:
                 # Convert the data to proper numpy arrays
-                X = np.array(X)
+                inputs = np.array(inputs)
                 frames = np.array(frames)
 
                 # Pass the data through the network
-                output = self.forward(X, training=False)
-                predictions = self.layers[-1].predictions(output)
+                outputs = self.forward(inputs, training=False)
+                predictions = self.layers[-1].predictions(outputs)
                 # Reshape predictions to 2d array
                 predictions = predictions.reshape(predictions.shape[0], self.res_out[1], self.res_out[0])
                 # Add array filled with zeros that was cut away from the network
                 fill = np.zeros(
-                    (predictions.shape[0], int(self.res_out[1] / (1 - self.poi) * self.poi), self.res_out[0]))
+                    (predictions.shape[0], int(self.res_out[1] / (1 - self.roi) * self.roi), self.res_out[0]))
                 predictions = np.append(fill, predictions, axis=1)
 
                 # Iterate over all frames
                 for i in range(len(predictions)):
-                    # Resize network output to original video resolution
+                    # Resize network outputs to original video resolution
                     predict = cv2.resize(predictions[i], (width, height))
                     # Mark predicted pixels in video red
                     frames[i, predict >= 0.5] = [0, 0, 255]
@@ -615,10 +635,10 @@ class Model:
                     video_output.write(frames[i])
                     # Increment process and print progressbar
                     process += 1
-                    printProgressBar(process, length + 1, prefix="Progress:", suffix="Complete", length=50)
+                    printProgressBar(process, length + 1, prefix="Progress:", suffix="Complete")
 
                 # Clear arrays
-                X = []
+                inputs = []
                 frames = []
 
                 # Calculate new max array size
@@ -627,30 +647,25 @@ class Model:
         # Release everything when job is finished
         video_input.release()
         video_output.release()
-        printProgressBar(length + 1, length + 1, prefix="Progress:", suffix="Complete", length=50)
+        printProgressBar(length + 1, length + 1, prefix="Progress:", suffix="Complete")
         print("\n")
-        # ==========================================================================================================
-        end_time = time.time()
-        time_lapsed = end_time - start_time
-        print(time_lapsed)
-        # ==========================================================================================================
 
-    def forward(self, X, training):
+    def forward(self, inputs, training):
 
-        # Call forward method on the input layer to create output property
-        self.input_layer.forward(X, training)
+        # Call forward method on the input layer to create outputs property
+        self.input_layer.forward(inputs, training)
 
         # Call forward method of every object
         for layer in self.layers:
-            layer.forward(layer.prev.output, training)
+            layer.forward(layer.prev.outputs, training)
 
-        # Return output of last layer
-        return layer.output
+        # Return outputs of last layer
+        return layer.outputs
 
-    def backward(self, output, y):
+    def backward(self, outputs, target_outputs):
 
         # Call backward method on the loss to create dinputs property
-        self.loss.backward(output, y)
+        self.loss.backward(outputs, target_outputs)
 
         # Call backward method of every object in reversed order
         for layer in reversed(self.layers):
@@ -660,27 +675,30 @@ class Model:
         # Make a deep copy of the current model
         model = copy.deepcopy(self)
 
+        redundant_properties = ["inputs", "outputs", "dinputs", "dweights", "dbiases", "bias_regulator",
+                                "weight_regulator", "weight_momentum", "weight_cache", "bias_momentum", "bias_cache"]
+
         # For each layer remove properties used for training
         for layer in model.layers[:]:
-            for property in ["inputs", "output", "dinputs", "dweights", "dbiases", "bias_regulator",
-                             "weight_regulator", "weight_momentum", "weight_cache", "bias_momentum", "bias_cache"]:
+            for property in redundant_properties:
                 layer.__dict__.pop(property, None)
             if isinstance(layer, Layer_Dropout):
                 model.layers.remove(layer)
 
-        # Finalize model again without dropout layers
-        model.finalize()
+        # Finalise model again without dropout layers
+        model.finalise()
 
-        # Remove unnecessary objects
-        model.input_layer.__dict__.pop("output", None)
+        # Remove redundant objects and properties
+        model.input_layer.__dict__.pop("outputs", None)
         model.__dict__.pop("output_layer_activation", None)
         model.__dict__.pop("index", None)
         model.__dict__.pop("path", None)
+        model.__dict__.pop("ctrl_img", None)
+        model.__dict__.pop("stats", None)
         model.__dict__.pop("trainable_layers", None)
         model.__dict__.pop("loss", None)
         model.__dict__.pop("accuracy", None)
-        model.__dict__.pop("optimizer", None)
-        model.layers[-1].__dict__.pop("next", None)
+        model.__dict__.pop("optimiser", None)
 
         # Open a file in the binary-write mode and save the model
         with open(path, "wb") as f:
@@ -697,17 +715,17 @@ class Model:
 
 
 # Print iterations progress
-def printProgressBar(iteration, total, prefix="", suffix="", decimals=1, length=100, fill="█"):
-    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
-    filledLength = int(length * iteration // total)
-    bar = fill * filledLength + "-" * (length - filledLength)
+def printProgressBar(iteration, total, prefix="", suffix=""):
+    percent = "{0:.1f}".format(100 * (iteration / float(total)))
+    filledLength = int(50 * iteration // total)
+    bar = "█" * filledLength + "-" * (50 - filledLength)
     print(f"\r{prefix} |{bar}| {percent}% {suffix}", end="\r")
 
 
 # Instantiate the model
 model = Model()
 
-model.dataset(path=r"C:\Users\Levin\Downloads\Dataset 03", res_in=[273, 98], res_out=[273, 98], poi=0.5, kernel_size=3)
+model.dataset(path=r"C:\Users\Levin\Downloads\Dataset 03", res_in=[256, 144], res_out=[256, 144], roi=0.5, kernel_size=3)
 
 regulator = 0.02
 
@@ -725,13 +743,15 @@ model.add(Layer_Dropout(0.15))
 model.add(Layer_Dense(8192, model.res_out[0] * model.res_out[1]))
 model.add(Activation_Sigmoid())
 
-# Set loss and optimizer objects
+# Set model attributes
 model.set(loss=Loss_UnbalancedSegmentation(),
-          optimizer=Optimizer_Adam(learning_rate=0.0006, decay=5e-4, epsilon=1e-6, beta_1=0.8, beta_2=0.8),
-          stats=True)
+          optimiser=Optimizer_Adam(learning_rate=0.0006, decay=5e-4, epsilon=1e-6, beta_1=0.8, beta_2=0.8),
+          accuracy=Accuracy_Absolute(),
+          stats=True,
+          ctrl_img=r"C:\Users\Levin\Downloads\Dataset 03\train\images\0A2csn66EuIdDBis7ds63oVF7.png")
 
-# Finalize the model
-model.finalize()
+# Finalise the model
+model.finalise()
 
 # Train the model
 model.train(epochs=100000, batch_size=8, print_every=1, save_every=1000)
@@ -739,6 +759,7 @@ model.train(epochs=100000, batch_size=8, print_every=1, save_every=1000)
 # Save the model
 model.save(r"F:\Curvelanes\lane_detection.model")
 
+# Load a saved model
 model = Model.load(r"D:\Curvelanes\1.2.model")
 
 # Use the model to predict data
