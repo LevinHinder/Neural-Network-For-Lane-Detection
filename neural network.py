@@ -745,7 +745,7 @@ model.add(Activation_Sigmoid())
 
 # Set model attributes
 model.set(loss=Loss_UnbalancedSegmentation(),
-          optimiser=Optimizer_Adam(learning_rate=0.0006, decay=5e-4, epsilon=1e-6, beta_1=0.8, beta_2=0.8),
+          optimiser=Optimiser_Adam(learning_rate=0.0006, decay=5e-4, epsilon=1e-6, beta_1=0.8, beta_2=0.8),
           accuracy=Accuracy_Absolute(),
           stats=True,
           ctrl_img=r"F:\Datasets\Lane Detection\CurveLanes\train\images\000a9e2091e2902d988ffdd87258fc29.jpg")
