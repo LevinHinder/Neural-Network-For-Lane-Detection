@@ -1,6 +1,6 @@
 # Neural-Network-For-Lane-Detection
 
-### Manual
+## Manual
 <ol>
   <li>Download the newest <i>programme.py</i> file from the <a href="https://github.com/LevinHinder/Neural-Network-For-Lane-Detection/releases">release</a>.</li>
   <li>Download the newest <a href="https://www.python.org/downloads/">Python Interpreter</a>. Make sure you can pip install.</li>
@@ -12,7 +12,7 @@
 </ol>
 
 
-### Error Messages
+## Error Messages
 <code>ERROR: Failed to install required libraries</code><br>
 Start the programme again. If the programme still crashes after the second restart, install the libraries specified in the console manually.<br><br>
 <code>ERROR: Automatic folder to save and load model not found</code><br>
@@ -23,7 +23,7 @@ Start the programme again. If the programme still crashes after the second resta
 Check the storage path of the model you specified. Also check the name of the downloaded file.<br>
 
 
-### Hardware Specefications
+## Hardware Specefications
 <ul>
   <li>Memory: >5GB</li>
   <li>RAM: >5GB</li>
@@ -31,7 +31,7 @@ Check the storage path of the model you specified. Also check the name of the do
 The programme is heavily RAM dependent and will automaticly adapt to the amount of RAM availiable. Therefore more than 8 GB of RAM is recommendable.
 
 
-### Software Specefications
+## Software Specefications
 <ul>
   <li>Python 3.8, 3.9</li>
 </ul>
@@ -46,11 +46,11 @@ For my testruns I used following library versions.
 There should be no dependencies with regard to the operating system. However testruns were succesful on Windows, MacOS and Linux.
 
 
-### Dataset
+## Dataset
 For this project I used the <a href="https://github.com/SoulmateB/CurveLanes">CurveLanes Dataset</a>. With the programme <i>data preparation.py</i> I wrote a little scipt to convert the datapoints into a more uniform way. To do so, I converted all the information from the .JSON files into pictures with binary segmentation.
 
 
-### License
+## License
 
     MIT License
 
